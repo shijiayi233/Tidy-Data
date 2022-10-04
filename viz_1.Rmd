@@ -5,7 +5,7 @@ date: "2022-09-29"
 output: github_document
 ---
 
-```{r}
+```{r setup}
 knitr::opts_chunk$set(
   fig.width = 6,
   fig.asp = .6, # aspect ratio (纵横比)
