@@ -1,14 +1,15 @@
-viz_and_eda
-================
-Jiayi Shi
-2022-09-29
-
-``` r
+---
+title: "viz_and_eda"
+author: "Jiayi Shi"
+date: "2022-09-29"
+output: github_document
+---
+```{r message=FALSE}
 library(tidyverse)
 library(ggridges)
 ```
 
-``` r
+```{r}
 weather_df = 
   rnoaa::meteo_pull_monitors(
     c("USW00094728", "USC00519397", "USS0023B17S"),
@@ -26,12 +27,3 @@ weather_df =
   select(name, id, everything())
 ```
 
-    ## Registered S3 method overwritten by 'hoardr':
-    ##   method           from
-    ##   print.cache_info httr
-
-    ## file min/max dates: 1869-01-01 / 2022-09-30
-
-    ## file min/max dates: 1965-01-01 / 2020-03-31
-
-    ## file min/max dates: 1999-09-01 / 2022-09-30
