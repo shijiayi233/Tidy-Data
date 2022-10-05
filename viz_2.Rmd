@@ -6,6 +6,9 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
+library(tidyverse)
+library(patchwork)
+
 knitr::opts_chunk$set(
   fig.width = 6,
   fig.asp = .6,
@@ -23,10 +26,6 @@ scale_colour_discrete = scale_colour_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
 ```
 
-```{r}
-library(tidyverse)
-library(patchwork)
-```
 
 ```{r}
 weather_df = 
@@ -46,7 +45,32 @@ weather_df =
   select(name, id, everything())
 ```
 
-The ordering of theme_bw() and theme() matters – theme() changes a particular element of the plot’s current “theme”. 
+## labs, scale
+
+```{r}
+weather_df %>% 
+  ggplot(aes(x = tmin, y = tmax)) + 
+  geom_point(aes(color = id), alpha = .5) + 
+# ggplot(aes(x = tmin, y = tmax, color = id)) + 
+# geom_point(alpha = .5) + 
+  labs(
+    title = "Temperature plot",
+    x = "Minimum daily temperature (C)",
+    y = "Maxiumum daily temperature (C)",
+    caption = "Data from the rnoaa package"
+  ) +
+  scale_x_continuous(
+    breaks = c(-10,0,15),
+    labels = c("10C","0","15")
+  ) +
+  scale_color_hue( # change point color / or use viridis::scale_color_viridis 
+    name = "Location",# name: change legend name 
+    h = c(40,300))
+```
+
+## Themes
+
+The ordering of theme_bw() and theme() matters – theme() changes a particular element of the plot’s current “theme”. theme_minimal()/bw()...they set parameters in a very specific way.
 
 ### Assessment
 
@@ -58,13 +82,18 @@ ggplot(weather_df,aes(x = date, y = tmax, color = name)) +
     title = "Temperature plot",
     x = "Date",
     y = "Maximum daily temperature (C)",
-    caption = "Data from the rnoaa package") +
+    caption = "Data from the rnoaa package"
+    ) +
   viridis::scale_color_viridis(
     name = "Location", # legend name
-    discrete = TRUE) + # discrete = TRUE: because the color aesthetic is mapped to a discrete variable. In other cases (for example, when color mapped to prcp) you can omit this argument to get a continuous color gradient. The viridis::scale_fill_viridis() function is appropriate for the fill aesthetic used in histograms, density plots, and elsewhere.
+    discrete = TRUE) + # default: apply continuous scale
+# discrete = TRUE: because the color aesthetic is mapped to a discrete variable. In other cases (for example, when color mapped to prcp) you can omit this argument to get a continuous color gradient. The viridis::scale_fill_viridis() function is appropriate for the fill aesthetic used in histograms, density plots, and elsewhere.
   theme_minimal()+
   theme(legend.position = "bottom") # legend.position = "none" will remove the legend. This is helpful when multiple plots use the same color scheme or when the legend is obnoxious for some other reason.
 ```
+
+
+* Prepare all the dataset you need to plot first.
 
 ```{r}
 central_park = 
@@ -93,7 +122,7 @@ tmax_tmin_p =
 
 prcp_dens_p = 
   weather_df %>% 
-  filter(prcp > 0) %>% 
+  filter(prcp > 0, prcp<500) %>% 
   ggplot(aes(x = prcp, fill = name)) + 
   geom_density(alpha = .5) + 
   theme(legend.position = "none")
@@ -105,17 +134,19 @@ tmax_date_p =
   geom_smooth(se = FALSE) + 
   theme(legend.position = "bottom")
 
-(tmax_tmin_p + prcp_dens_p) / tmax_date_p
+tmax_tmin_p + prcp_dens_p / tmax_date_p
 ```
 
 ## Data manipulation
 
-change order of categorical variables.  
-`forcats::fct_relevel`: based on your own preference.  
-`forcats::fct_reorder`: based on another variable.
+change order of categorical variables.   
+convert to factor, default is alphabetical ordering.   
+`fct_relevel`: based on your own preference.  
+`fct_reorder`: based on another variable.
 ```{r}
 weather_df %>%
-  mutate(name = forcats::fct_relevel(name, c("Waikiki_HA", "CentralPark_NY", "Waterhole_WA"))) %>% 
+  #mutate(name = forcats::fct_relevel(name, c("Waikiki_HA", "CentralPark_NY", "Waterhole_WA"))) %>% 
+  mutate(name = fct_relevel(name, "Waikiki_HA")) %>% # put Waikiki_HA first
   ggplot(aes(x = name, y = tmax)) + 
   geom_violin(aes(fill = name), color = "blue", alpha = .5) + 
   theme(legend.position = "bottom")
@@ -156,7 +187,8 @@ pulse_data =
   select(id, visit, everything()) %>%
   mutate(
     visit = recode(visit, "bl" = "00m"),
-    visit = factor(visit, levels = str_c(c("00", "01", "06", "12"), "m"))) %>% # str_c: Joins two or more vectors element-wise into a single character vector, optionally inserting sep between input vectors. 
+    visit = factor(visit, levels = str_c(c("00", "01", "06", "12"), "m"))# str_c: Joins two or more vectors element-wise into a single character vector, optionally inserting sep between input vectors. 
+  ) %>% 
   arrange(id, visit)
 
 ggplot(pulse_data, aes(x = visit, y = bdi)) + 
