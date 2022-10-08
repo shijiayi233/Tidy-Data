@@ -1,5 +1,5 @@
 ---
-title: "eda"
+title: "exploratory numeric analysis"
 author: "Jiayi Shi"
 date: "2022-10-05"
 output: github_document
@@ -27,7 +27,7 @@ scale_fill_discrete = scale_fill_viridis_d
 ```
 
 
-```{r}
+```{r message=FALSE}
 weather_df =  
   rnoaa::meteo_pull_monitors(
     c("USW00094728", "USC00519397", "USS0023B17S"),
@@ -43,17 +43,26 @@ weather_df =
     tmin = tmin / 10,
     tmax = tmax / 10,
     month = lubridate::floor_date(date, unit = "month")) %>%
+  # 2012-01-13 rounded to minth: 2012-01-01
   select(name, id, everything())
 ```
 
 ## `group_by`+`summarise()`
+
+`group_by`: don't change any of the data, just add a layer on top of the data set, change the behavior of functions used  it.
+
+```{r}
+weather_df %>% 
+  group_by(name, month) 
+```
+
 
 ### Counting things
 
 * `group_by`+`summarise(n())`
 ```{r}
 weather_df %>% 
-  group_by(name,month) %>% # can group by more than one variable
+  group_by(name, month) %>% # can group by more than one variable
   summarise(n_obs = n())
 ```
 
@@ -63,12 +72,14 @@ weather_df %>%
   count(name,month,name = "n_obs")#the count column name, default to be "n"
 ```
 
+* don't use `table`
 ```{r}
 weather_df %>%
   pull(month) %>% 
   table
 ```
 
+* multiple summaries
 ```{r}
 weather_df %>%
   group_by(month) %>%
@@ -95,11 +106,11 @@ weather_df %>%
   filter(name != "Waikiki_HA") %>% 
   group_by(name,cold) %>% 
   summarise(count = n()) %>% 
-  pivot_wider(names_from = "cold",values_from = "count") %>% 
+  pivot_wider(names_from = "cold",values_from = "count")
  # convert to a nice 2x2 table
 ```
 
-* `knitr::ktable()`: Presenting reader-friendly results for this kind of exploratory analysis.
+* `knitr::ktable()`: table for Rmarkdown file -- Presenting reader-friendly results for this kind of exploratory analysis. (use pivot_wider to untidy data so that reader-friendly)
 ```{r}
 weather_df %>%
   group_by(name, month) %>%
@@ -142,8 +153,8 @@ Used to summarize multiple columns using the same summary.
 
 ```{r}
 weather_df %>%
-  group_by(name, month) %>%
-  summarize(across(tmin:prcp, mean))
+  #group_by(name, month) %>%
+  summarize(across(tmin:prcp, mean, na.rm=T))
 ```
 
 ### Plot
@@ -152,9 +163,11 @@ weather_df %>%
 weather_df %>% 
   group_by(name,month) %>% 
   summarise(mean_tmax = mean(tmax)) %>% 
+  # prepare the dataframe before plotting
+  
   ggplot(aes(x = month, y = mean_tmax, color = name)) + 
   geom_point() +
-  geom_line()
+  geom_path()
 ```
 
 ## `group_by`+`mutate()`
@@ -200,6 +213,15 @@ weather_df %>%
  
 * `lag()`
 used to compare an observation to it’s previous value:
+
+```{r}
+weather_df %>%
+  group_by(name) %>%
+  mutate(
+    yesterday_tmax = lag(tmax) # default lag one day; should group_by first
+  )
+```
+
 
 ```{r}
 weather_df %>%
