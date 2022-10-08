@@ -1,1 +1,1 @@
-# Visualization and EDA
+# Exploratory numeric analysis
