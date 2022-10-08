@@ -2,8 +2,30 @@
 title: "eda"
 author: "Jiayi Shi"
 date: "2022-10-05"
-output: html_document
+output: github_document
 ---
+```{r results='hide',message=FALSE}
+library(tidyverse)
+
+Sys.setlocale("LC_TIME", "English")
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
 
 ```{r}
 weather_df =  
@@ -23,4 +45,228 @@ weather_df =
     month = lubridate::floor_date(date, unit = "month")) %>%
   select(name, id, everything())
 ```
+
+## `group_by`+`summarise()`
+
+### Counting things
+
+* `group_by`+`summarise(n())`
+```{r}
+weather_df %>% 
+  group_by(name,month) %>% # can group by more than one variable
+  summarise(n_obs = n())
+```
+
+* `count()`
+```{r}
+weather_df %>% 
+  count(name,month,name = "n_obs")#the count column name, default to be "n"
+```
+
+```{r}
+weather_df %>%
+  pull(month) %>% 
+  table
+```
+
+```{r}
+weather_df %>%
+  group_by(month) %>%
+  summarize(
+    n_obs = n(),
+    n_days = n_distinct(date))
+```
+
+### 2x2 tables
+
+Tabulate the frequency of a binary outcome across levels of a binary predictor.
+
+* ``group_by` + `summarise` + `pivot_wider` 
+
+```{r}
+weather_df %>%
+  mutate(
+    cold = case_when(
+      tmax>=5 ~ "not_cold",# condition ~ output value
+      tmax<5 ~ "cold",
+      TRUE ~ "" # force case_when to output value behind TRUE if none of the previous conditions were TRUE
+    ) 
+  ) %>% 
+  filter(name != "Waikiki_HA") %>% 
+  group_by(name,cold) %>% 
+  summarise(count = n()) %>% 
+  pivot_wider(names_from = "cold",values_from = "count") %>% 
+ # convert to a nice 2x2 table
+```
+
+* `knitr::ktable()`: Presenting reader-friendly results for this kind of exploratory analysis.
+```{r}
+weather_df %>%
+  group_by(name, month) %>%
+  summarize(mean_tmax = mean(tmax)) %>% 
+  pivot_wider(
+    names_from = name,
+    values_from = mean_tmax) %>% 
+  knitr::kable(digits = 1) # digits: decimal place of output values in the table
+```
+
+
+* janitor::tabyl (generate frequency table)
+
+```{r}
+weather_df %>% 
+  mutate(cold = case_when(
+    tmax <  5 ~ "cold",
+    tmax >= 5 ~ "not_cold",
+    TRUE     ~ ""
+  )) %>% 
+  filter(name != "Waikiki_HA") %>% 
+  janitor::tabyl(name, cold)
+```
+
+### functions in `summaries()`
+
+```{r}
+weather_df %>%
+  group_by(month) %>%
+  summarize(
+    mean_tmax = mean(tmax),
+    mean_prec = mean(prcp, na.rm = TRUE),
+    median_tmax = median(tmax),
+    sd_tmax = sd(tmax))
+```
+
+* `across()`
+
+Used to summarize multiple columns using the same summary.
+
+```{r}
+weather_df %>%
+  group_by(name, month) %>%
+  summarize(across(tmin:prcp, mean))
+```
+
+### Plot
+
+```{r}
+weather_df %>% 
+  group_by(name,month) %>% 
+  summarise(mean_tmax = mean(tmax)) %>% 
+  ggplot(aes(x = month, y = mean_tmax, color = name)) + 
+  geom_point() +
+  geom_line()
+```
+
+## `group_by`+`mutate()`
+
+To compare the daily max temperature to the annual average max temperature for each station separately and plot the results.
+```{r}
+weather_df %>%
+  group_by(name) %>%
+  mutate(
+    mean_tmax = mean(tmax, na.rm = TRUE),
+    centered_tmax = tmax - mean_tmax) %>% 
+  ggplot(aes(x = date, y = centered_tmax, color = name)) + 
+    geom_point() 
+```
+
+### Window functions
+ aggregate funcitons: n inputs, 1 output  
+ window functions: n inputs, n outputs
+
+* `min_rank()`
+
+```{r}
+weather_df %>%
+  group_by(name, month) %>%
+  mutate(temp_ranking = min_rank(tmax)) # min_rank(): one way of ranking 
+```
+ 
+Useful when filtering data based on rank:
+
+```{r}
+weather_df %>%
+  group_by(name, month) %>%
+  filter(min_rank(tmax) < 2)
+# keep only the day with the lowest max temperature within each month
+```
+
+```{r}
+weather_df %>%
+  group_by(name, month) %>%
+  filter(min_rank(desc(tmax)) < 4)
+# keep the three days with the highest max temperature
+```
+ 
+* `lag()`
+used to compare an observation to it’s previous value:
+
+```{r}
+weather_df %>%
+  group_by(name) %>%
+  mutate(temp_change = tmax - lag(tmax))
+# find the day-by-day change in max temperature within each station over the year
+```
+
+This kind of variable might be used to quantify the day-by-day variability in max temperature, or to identify the largest one-day increase:
+
+```{r}
+weather_df %>%
+  group_by(name) %>%
+  mutate(temp_change = tmax - lag(tmax)) %>%
+  summarize(
+    temp_change_sd = sd(temp_change, na.rm = TRUE),
+    temp_change_max = max(temp_change, na.rm = TRUE))
+```
+
+## Assessment
+
+```{r}
+pulse = haven::read_sas("data/public_pulse_data.sas7bdat") %>%
+  janitor::clean_names() %>% 
+  pivot_longer(
+    4:7,
+    names_to = "visit",
+    names_prefix = "bdi_score_",
+    values_to = "bdi",
+  ) %>% 
+  select(id,visit,everything()) %>% 
+  mutate(
+    visit = recode(visit,"bl"="00m"),
+    visit = factor(visit,levels = str_c(c("00","01","06","12"),"m"))
+    #visit = as.factor(visit)
+  ) %>% 
+  arrange(id,visit)
+
+pulse %>% 
+  group_by(visit) %>% 
+  summarise(mean_bdi = mean(bdi, na.rm = T),
+            median_bdi = median(bdi, na.rm = T)) %>% 
+  knitr::kable(digits = 2)
+```
+
+
+```{r}
+pup_data = 
+  read_csv("./data/FAS_pups.csv") %>%
+  janitor::clean_names() %>%
+  mutate(sex = recode(sex, `1` = "male", `2` = "female")) 
+
+litter_data = 
+  read_csv("./data/FAS_litters.csv") %>%
+  janitor::clean_names() %>%
+  separate(group, into = c("dose", "day_of_tx"), sep = 3)
+
+fas_data = left_join(pup_data, litter_data, by = "litter_number")
+
+fas_data %>% 
+  group_by(dose, day_of_tx) %>% 
+  drop_na(dose) %>% 
+  summarize(mean_pivot = mean(pd_pivot, na.rm = TRUE)) %>% 
+  pivot_wider(
+    names_from = dose, 
+    values_from = mean_pivot) %>% 
+  knitr::kable(digits = 3)
+```
+
 
